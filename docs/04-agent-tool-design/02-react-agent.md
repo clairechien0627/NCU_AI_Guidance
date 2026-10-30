@@ -69,7 +69,7 @@ course_pool: dict[str, CourseCard]  # {課名: CourseCard dict}
 | `get_depts_by_tech` | `str` | regex 解析「相關課程」段落 |
 | `explore_concept_neighborhood` | `str` | regex 解析課程列表 |
 
-其餘工具（`get_teacher_info`, `get_dept_info`, `get_graduation_requirements`, `search_programs`, `search_teachers`）不產出課程到 pool。
+其餘啟用工具（`get_teacher_info`, `get_graduation_requirements`, `search_programs`, `search_teachers`）不產出課程到 pool。`get_dept_info` 目前停用。
 
 ---
 

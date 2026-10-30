@@ -33,7 +33,7 @@
 | `ncu_courses_ug` | 大學部課程嵌入（含 metadata） | 課程語意搜尋 |
 | `ncu_courses_grad` | 研究所課程嵌入 | 研究所課程搜尋 |
 | `ncu_teachers` | 教師專長嵌入 | 教師搜尋 |
-| `ncu_departments` | 系所介紹嵌入（Collego 資料） | 系所說明搜尋 |
+| `ncu_departments` | 舊系所介紹 collection（暫停使用） | 待資料內容與向量策略 review |
 | `ncu_credit_programs` | 學分學程嵌入 | 學程語意搜尋 |
 | `ncu_graph_nodes` | 知識圖譜節點嵌入（概念/技術/領域） | Query expansion（3-layer hybrid search） |
 
@@ -117,7 +117,7 @@ _extract_courses_from_tags()
 | 課程搜尋 | `search_courses` | 3-layer hybrid search（query expansion → RRF） |
 | 課程搜尋 | `get_dept_courses` | 系所必/選修課程列表 |
 | 課程搜尋 | `get_course_detail` | 課程詳情（課綱 + 修課資格 + 先修條件，整合版） |
-| 系所 | `get_dept_info` | 系所特色介紹（Collego） |
+| 系所 | `get_dept_info`（暫停） | `ncu_departments` 內容與向量策略確認前不暴露給 agent |
 | 系所 | `get_graduation_requirements` | 畢業規定（結構化+原文） |
 | 學程 | `search_programs` | 語意搜尋學分學程 |
 | 學程 | `get_program_info` | 學程說明 + 必/選修課清單（一次取得） |

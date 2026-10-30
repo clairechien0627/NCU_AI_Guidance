@@ -46,7 +46,7 @@ Qdrant 使用余弦距離（`Distance.COSINE`），所有 collection 均以此�
 
 - `search_courses`（Signal A + B 各自取 distance）
 - `search_teachers`
-- `get_dept_info`
+- `get_dept_info`（目前停用，不參與排序）
 - `search_programs`
 
 ---
@@ -203,7 +203,7 @@ filtered = [r for r in results if r['score'] >= threshold]
 
 | 分數 | 越大/越小越好 | 跨工具可比 | 使用工具 |
 |------|------------|----------|---------|
-| Qdrant `distance` | 越小越好 | 同 collection 可比 | search_courses, search_teachers, get_dept_info |
+| Qdrant `distance` | 越小越好 | 同 collection 可比 | search_courses, search_teachers（get_dept_info 目前停用） |
 | RRF score | 越大越好 | 同次融合可比 | search_courses, find_similar_courses, get_course_knowledge_map |
 | `shared_concepts` | 越大越好 | 課程間可比 | find_similar_courses, get_course_knowledge_map |
 | PPR `score` | 越大越好 | 同次 PPR 可比 | ppr_explore |

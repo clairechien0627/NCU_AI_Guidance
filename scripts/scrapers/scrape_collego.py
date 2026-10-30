@@ -4,11 +4,11 @@ collego.edu.tw 爬蟲 v2 — 結構化版本
 輸出：data/collego_ncu.json
 """
 
+import argparse
 import asyncio
 import json
 import re
 from pathlib import Path
-from playwright.async_api import async_playwright
 
 # ── 設定 ─────────────────────────────────────────────
 BASE_URL = "https://collego.edu.tw"
@@ -394,7 +394,26 @@ async def scrape_department(page, dept: dict) -> dict:
 
 
 # ── 主流程 ────────────────────────────────────────────
+def require_explicit_authorization() -> None:
+    parser = argparse.ArgumentParser(
+        description="舊版 ColleGo! 研究爬蟲；不得接入正式服務"
+    )
+    parser.add_argument(
+        "--confirm-authorized",
+        action="store_true",
+        help="確認已取得涵蓋重製、索引及公開展示的授權",
+    )
+    args = parser.parse_args()
+    if not args.confirm_authorized:
+        raise SystemExit(
+            "此舊版爬蟲已停用。只有在取得可涵蓋重製、建立檢索索引與公開展示的明確授權後，"
+            "才可加上 --confirm-authorized 執行；輸出仍不得直接接回正式索引。"
+        )
+
+
 async def main():
+    from playwright.async_api import async_playwright
+
     print("=" * 60)
     print(f"  collego.edu.tw 爬蟲 v2 — {TARGET_SCHOOL}")
     print("=" * 60)
@@ -443,4 +462,5 @@ async def main():
 
 
 if __name__ == "__main__":
+    require_explicit_authorization()
     asyncio.run(main())

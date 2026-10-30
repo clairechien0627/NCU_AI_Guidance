@@ -744,24 +744,11 @@ def tool_get_graduation_rules(dept_name: str) -> dict:
 
 
 def tool_get_dept_info(query: str) -> list[dict]:
-    """語意搜尋系所介紹（Collego 資料：特色、生涯進路、能力特質）。"""
-    results = retriever.search_departments(query, n_results=5)
-    out = []
-    for r in results:
-        dept_name = r.get("metadata", {}).get("dept_name", "")
-        entry = {
-            "dept_name":     dept_name,
-            "summary":       r.get("document", "")[:500],
-            "domain_profile": [],
-        }
-        if dept_name:
-            try:
-                profile = graph_service.get_dept_domain_profile(dept_name)
-                entry["domain_profile"] = profile.get("top_domains", [])
-            except Exception:
-                pass
-        out.append(entry)
-    return out
+    """暫停使用；不得查詢尚在 review 的 ncu_departments collection。"""
+    return [{
+        "error": "get_dept_info_disabled",
+        "message": "系所介紹資料與向量策略尚在 review，目前不提供此查詢。",
+    }]
 
 
 def _matches_access_rule(rule: dict, student_dept: str, student_year: int,
@@ -1389,7 +1376,6 @@ _TOOL_MAP = {
     "get_graduation_requirements": tool_get_graduation_requirements,
     "get_graduation_rules":        tool_get_graduation_rules,       # backward compat
     "get_requirements_notes":      tool_get_requirements_notes,     # backward compat
-    "get_dept_info":               tool_get_dept_info,
     "get_course_detail":           tool_get_course_detail,
     "search_programs":             tool_search_programs,
     "find_similar_courses":        tool_find_similar_courses,
@@ -1496,20 +1482,6 @@ TOOLS = [
                     "dept_name": {"type": "string", "description": "系所名稱，如「資訊工程學系」「大氣科學學系」"},
                 },
                 "required": ["dept_name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_dept_info",
-            "description": "查詢系所介紹、學系特色、生涯進路、能力特質（來自 Collego 資料）。適合「XX系在學什麼」、「適合什麼人」此類查詢。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "系所名稱或描述，如「適合喜歡設計的人的系所」"},
-                },
-                "required": ["query"],
             },
         },
     },

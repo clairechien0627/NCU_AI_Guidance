@@ -13,7 +13,7 @@
 | **課程搜尋** | `search_courses`, `get_dept_courses`, `get_course_detail` | 覆蓋完整 |
 | **探索/推薦** | `find_similar_courses`, `get_course_knowledge_map`, `ppr_explore`, `explore_concept_neighborhood` | ⚠️ 有重疊風險（見 1.2） |
 | **學程** | `search_programs`, `get_program_description`, `get_program_courses` | ⚠️ 後兩者幾乎總是並行（見 1.3） |
-| **系所/教師** | `get_dept_info`, `get_teacher_info`, `search_teachers` | 無問題 |
+| **系所/教師** | `get_teacher_info`, `search_teachers` | `get_dept_info` 暫停，待系所向量資料策略確認 |
 | **畢業規定** | `get_graduation_requirements` | 無問題 |
 | **技術分布** | `get_depts_by_tech` | 無問題 |
 

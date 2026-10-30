@@ -41,7 +41,7 @@
 | 教師領域專長 | 教育部大專校院一覽表 | **1,009 位** / 2,469 個專長詞彙 |
 | 應修科目表 | 中央大學教務處 | **28 系所** / 458 門必修課 |
 | 學分學程 | 中央大學課務資訊網 | **42 個學程** / 998 門課 |
-| 科系介紹 | Collego | **32 個系所**（特色、意涵、生涯進路） |
+| 科系介紹 | **暫停使用** | `ncu_departments` 內容與向量策略 review 中 |
 | 大專研究計畫 PDF | 國科會 | **459 份**（104–114 學年） |
 | 知識圖譜 | NLP 萃取 + 結構化整合 | **27,447 節點 / 103,111 邊** |
 | NLP 萃取語意節點 | Qwen3-14B-AWQ 本地推理 | 概念 16,985 + 領域 2,760 + 技術 895 |
@@ -85,7 +85,7 @@
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────┐  │
 │  │ 課程 RAG   │  │ PDF RAG    │  │  監控 / 分析 API      │  │
 │  │ ReAct 工具 │  │ 多 Agent   │  │  /api/monitor/*      │  │
-│  │ 14 個工具  │  │ LangGraph  │  │  /api/chat/analytics │  │
+│  │ 13 個工具  │  │ LangGraph  │  │  /api/chat/analytics │  │
 │  └────────────┘  └────────────┘  └──────────────────────┘  │
 └──┬───────────┬───────────┬───────────┬──────────────────────┘
    │           │           │           │
@@ -176,7 +176,7 @@
 | `ncu_courses_ug` | 大學部課程（課綱 + NLP 語意 + 教師專長） | **3,547** |
 | `ncu_courses_grad` | 研究所課程 | **974** |
 | `ncu_teachers` | 教師資料（專長 + 開課） | **1,009** |
-| `ncu_departments` | 系所介紹（Collego 科系說明） | **32** |
+| `ncu_departments` | 舊 collection，agent 目前不可存取 | **暫停** |
 | `ncu_credit_programs` | 學分學程說明 | **42** |
 | `ncu_graph_nodes` | 知識圖譜節點（Query Expansion 種子；概念 / 技術 / 領域 / 核心能力 / 課程） | **25,071** |
 | `reports` | PDF 研究計畫 chunks | **14,815** |
@@ -198,7 +198,7 @@
 ### 5.1 課程資料 Pipeline
 
 ```
-原始資料（課程資訊 PDF/HTML + 教育部 CSV + Collego JSON）
+原始資料（課程資訊 PDF/HTML + 教育部 CSV）
   │
   ▼
 資料清洗 & 結構化
@@ -324,7 +324,7 @@ Phase 2（語意補入，各步驟獨立）
     ├─ get_depts_by_tech（技術→系所）
     ├─ get_graduation_requirements
     ├─ find_similar_courses（RRF）
-    └─ … 共 14 個工具
+    └─ … 共 13 個啟用工具
          │
          ▼
   工具結果注入 messages
@@ -368,14 +368,14 @@ Layer 3：RRF 融合（K=60）
   排名 → exact_match 置頂 → 前 n 筆輸出
 ```
 
-### 7.3 暴露給 LLM 的 14 個工具
+### 7.3 暴露給 LLM 的 13 個工具
 
 | 工具名稱 | 資料來源 | 主要用途 |
 |---------|---------|---------|
 | `search_courses` | Qdrant + Graph | 多 Signal 語意搜尋 |
 | `get_dept_courses` | Graph | 系所必修/選修清單 |
 | `get_course_detail` | Qdrant | 課綱 + 修課資格 + 先修（三合一） |
-| `get_dept_info` | Qdrant + Graph | 系所介紹 + 領域分布 |
+| `get_dept_info` | 暫停 | `ncu_departments` 內容與向量策略確認前不暴露給 LLM |
 | `get_graduation_requirements` | JSON + Graph | 畢業規定（二合一） |
 | `get_program_info` | JSON + Graph | 學程說明 + 課程（二合一） |
 | `search_programs` | Qdrant | 學程語意搜尋 |
@@ -732,7 +732,7 @@ Tab 2 課程推薦
   ├─ Latency 統計網格（avg / P95 / P99 / min / max）
   ├─ Latency 趨勢圖
   ├─ Token 用量趨勢 + 每日費用 & 每輪 Token 圖
-  └─ 工具使用統計（14 個工具水平條形圖）
+  └─ 工具使用統計（目前 13 個啟用工具水平條形圖）
 
 Tab 3 大專生計畫
   ├─ 時段統計列（活躍用戶 / 輪次 / Token / 平均深度 / 趨勢 %）
@@ -809,7 +809,7 @@ PDF 費用在 Python 層以 agent 與 router token 分開計算後加總，不�
 
 ### 期中已完成
 
-- 課程智能助理基礎架構（ReAct + 14 個工具）
+- 課程智能助理基礎架構（ReAct + 13 個啟用工具）
 - 知識圖譜建構（27,447 節點）
 - PDF 問答系統（多 Agent + LangGraph）
 - 興趣量表（資料 Pipeline + 前端評測流程）
