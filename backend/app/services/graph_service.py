@@ -172,7 +172,7 @@ def _load_dept_aliases() -> dict[str, str]:
 
 
 def _find_dept_like(dept_name: str) -> list[str]:
-    """找系所節點，依序嘗試：精確比對 → 別名查找 → 子字串比對 → 向量搜尋。"""
+    """找系所節點，依序嘗試：精確比對 → 別名查找 → 子字串比對。"""
     dept_types = {"Department", "DeptGroup", "CollegeBachelorProgram"}
 
     def _match_name(name: str) -> list[str]:

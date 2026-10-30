@@ -1,12 +1,13 @@
 """
 build_vector_index.py
 
-建立 Qdrant 向量索引，涵蓋五個 collection：
+建立 Qdrant 向量索引，目前涵蓋四個啟用 collection：
   ncu_courses_ug    — 大學部課程（含 NLP 萃取結果、教師專長、應修學期）
   ncu_courses_grad  — 研究所課程
   ncu_credit_programs — 學分學程
-  ncu_departments   — 暫停建立，等待資料內容與向量策略 review
   ncu_teachers      — 教師官方專長（114_ulistteacher.csv）
+
+暫停：ncu_departments — 等待資料內容與向量策略 review，不由本腳本建立
 
 執行方式：
   cd <project_root>
@@ -1014,7 +1015,7 @@ def build_teachers_collection(
 # ── 主程式 ───────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="建立 Qdrant 向量索引（五個 collection）")
+    parser = argparse.ArgumentParser(description="建立 Qdrant 向量索引（四個啟用 collection）")
     parser.add_argument(
         "--reset", action="store_true",
         help="強制重建（刪除已存在的 collection 重新嵌入）"

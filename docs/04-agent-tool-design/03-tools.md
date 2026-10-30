@@ -208,25 +208,13 @@
 執行此工具；系所名稱解析也不再以 `ncu_departments` 作為向量 fallback。待資料內容、來源與向量策略
 完成 review 後再決定是否重新啟用。
 
-**原設計功能**：語意搜尋由課程事實資料統計產生的系所介紹，包括課程領域、核心能力與代表性課程。
-
-**參數表**
-
-| 參數 | 型別 | 必填 | 預設值 | 說明 |
-|------|------|------|-------|------|
-| `query` | string | ✓ | — | 系所名稱或描述 |
-
-**回傳格式**（`list[dict]`，n_results=5）
+**目前直接呼叫的回傳格式**（`list[dict]`）：
 
 ```json
 [
   {
-    "dept_name": "客家語文暨社會科學學系",
-    "summary": "課程統計摘要前 500 字...",
-    "domain_profile": [],
-    "data_basis": "derived_from_ncu_course_statistics",
-    "is_official_department_statement": false,
-    "disclaimer": "課程資料統計摘要，不代表系所官方自述、入學建議或就業保證。"
+    "error": "get_dept_info_disabled",
+    "message": "系所介紹資料與向量策略尚在 review，目前不提供此查詢。"
   }
 ]
 ```
