@@ -201,22 +201,8 @@ def _find_dept_like(dept_name: str) -> list[str]:
     if substring:
         return substring
 
-    # 4. 向量搜尋（最後手段）
-    try:
-        from app.services.retriever import _get_qdrant, _embed
-        q_vec = _embed(dept_name)
-        result = _get_qdrant().query_points(
-            "ncu_departments", query=q_vec, limit=1, with_payload=True
-        )
-        if result.points:
-            best = result.points[0].payload.get("dept_name", "")
-            if best:
-                via_vec = _match_name(best)
-                if via_vec:
-                    return via_vec
-    except Exception:
-        pass
-
+    # ncu_departments 的資料內容與向量策略尚在審查中，不允許 agent
+    # 透過系所名稱解析間接查詢該 collection。名稱解析僅使用圖與別名表。
     return []
 
 

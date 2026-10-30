@@ -5,7 +5,7 @@ build_vector_index.py
   ncu_courses_ug    — 大學部課程（含 NLP 萃取結果、教師專長、應修學期）
   ncu_courses_grad  — 研究所課程
   ncu_credit_programs — 學分學程
-  ncu_departments   — 系所介紹（Collego）
+  ncu_departments   — 暫停建立，等待資料內容與向量策略 review
   ncu_teachers      — 教師官方專長（114_ulistteacher.csv）
 
 執行方式：
@@ -50,7 +50,6 @@ COURSE_ELIGIBILITY = DATA_PROC / "course_eligibility.json"
 DEPT_ALIASES       = DATA_PROC / "dept_aliases.json"
 COURSES_DEDUPED_UG   = DATA_PROC / "courses_deduped" / "undergrad.json"
 COURSES_DEDUPED_GRAD = DATA_PROC / "courses_deduped" / "grad.json"
-COLLEGO = DATA_RAW / "collego_ncu.json"
 TEACHER_CSV = DATA_RAW / "114_ulistteacher.csv"
 
 NLP_DIR = DATA_PROC / "nlp"
@@ -952,57 +951,8 @@ def build_programs_collection(qdrant: QdrantClient, embedder: Embedder, bm25: "B
 
 
 def build_departments_collection(qdrant: QdrantClient, embedder: Embedder, bm25: "BM25Embedder", reset: bool):
-    print("\n=== 建立 ncu_departments ===")
-    if not _prepare_collection(qdrant, "ncu_departments", reset, with_bm25=bm25.available):
-        return
-
-    if not COLLEGO.exists():
-        print(f"  [WARN] 找不到 {COLLEGO}")
-        return
-
-    depts = load_json(COLLEGO)
-    if not isinstance(depts, list):
-        print("  [WARN] collego_ncu.json 格式異常")
-        return
-
-    ids, docs, payloads = [], [], []
-    for d in depts:
-        dept_id = d.get("dept_id", "")
-        dept_name = d.get("dept_name", "")
-        intro: dict = d.get("學系介紹", {}) or {}
-
-        parts = [dept_name]
-        for field in ["學系特色", "學科意涵", "生涯進路", "能力特質"]:
-            val = intro.get(field, "")
-            if val:
-                parts.append(f"{field}：{val}")
-        learn = intro.get("學習方法", [])
-        if isinstance(learn, list) and learn:
-            parts.append(f"學習方法：{'；'.join(learn)}")
-        elif isinstance(learn, str) and learn:
-            parts.append(f"學習方法：{learn}")
-
-        course_info = d.get("課程資訊", "")
-        if course_info:
-            parts.append(f"課程資訊：{course_info}")
-
-        doc_text = "\n".join(parts)
-        if not doc_text.strip() or not dept_id:
-            continue
-
-        ids.append(dept_id)
-        docs.append(doc_text)
-        payloads.append({
-            "_text": doc_text,
-            "dept_id": dept_id,
-            "dept_name": dept_name,
-        })
-
-    embeddings = embedder.embed_batch(docs)
-    sparse_embs = bm25.embed_batch(docs) if bm25.available else None
-    _upsert_batch(qdrant, "ncu_departments", ids, docs, payloads, embeddings, sparse_embs)
-    info = qdrant.get_collection("ncu_departments")
-    print(f"  完成，collection 總數：{info.points_count}")
+    """暫停建立；保留函式簽名，待資料與向量策略 review 完成後實作。"""
+    print("\n=== 跳過 ncu_departments：資料內容與向量策略尚未核定 ===")
 
 
 def build_teachers_collection(
@@ -1162,14 +1112,13 @@ def main():
     )
 
     build_programs_collection(qdrant, embedder, bm25, args.reset)
-    build_departments_collection(qdrant, embedder, bm25, args.reset)
     build_teachers_collection(qdrant, embedder, bm25, args.reset)
     update_exclude_payload_all(qdrant)
 
     print("\n✓ 所有 collection 建立完成")
     print(f"  儲存位置：{QDRANT_DIR}")
     for col_name in ["ncu_courses_ug", "ncu_courses_grad", "ncu_credit_programs",
-                     "ncu_departments", "ncu_teachers"]:
+                     "ncu_teachers"]:
         try:
             info = qdrant.get_collection(col_name)
             print(f"  {col_name}: {info.points_count} 筆")

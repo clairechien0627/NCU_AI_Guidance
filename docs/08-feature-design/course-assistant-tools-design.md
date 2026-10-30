@@ -28,7 +28,7 @@
 
 ## 二、暴露給 LLM 的工具清單
 
-目前共 **14 個工具**透過 OpenAI Function Schema 暴露給 LLM，另有 4 個向後相容工具保留於 `_TOOL_MAP` 但不暴露：
+目前共 **13 個工具**透過 OpenAI Function Schema 暴露給 LLM；`get_dept_info` 已從 schema 與 `_TOOL_MAP` 暫時移除，另有 4 個向後相容工具保留於 `_TOOL_MAP` 但不暴露：
 
 ### 主要工具
 
@@ -37,7 +37,7 @@
 | `search_courses` | Qdrant + Graph | 語意搜尋課程（多 Signal RRF 融合，見第三節） |
 | `get_dept_courses` | Graph（Qdrant fallback） | 查詢系所必修/選修課程清單 |
 | `get_course_detail` | Qdrant | 課綱 + 修課資格 + 先修（三合一整合工具） |
-| `get_dept_info` | Qdrant + Graph | 系所介紹（Collego 文字）+ 課程領域分布 |
+| `get_dept_info`（暫停） | Qdrant + Graph | `ncu_departments` 內容與向量策略確認前不暴露給 LLM |
 | `get_graduation_requirements` | JSON + Graph | 畢業規定（結構化學分 + 原文，二合一整合工具） |
 | `get_program_info` | JSON + Graph | 學程說明 + 必選修課程清單（二合一整合工具） |
 | `search_programs` | Qdrant | 語意搜尋學分學程 |

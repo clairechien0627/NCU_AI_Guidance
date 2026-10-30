@@ -1,4 +1,4 @@
-# 工具詳細設計（14 個工具）
+# 工具詳細設計（13 個啟用工具，另 1 個暫停）
 
 > 文件版本：2026-05-02（更新：get_program_info 整合）  
 > 來源：`backend/app/services/tools.py`  
@@ -14,7 +14,7 @@
 | 1 | `search_courses` | Qdrant 向量（3 層 Hybrid：query expansion + RRF）+ 圖（tech-first） | `distance` | 語意搜尋課程；tech 參數走圖精確查詢 |
 | 2 | `get_course_detail` | Qdrant payload + course_eligibility.json | 無 | 課綱（目標/內容/教科書）+ 修課資格分發條件（整合版） |
 | 3 | `get_dept_courses` | 知識圖譜（→ Qdrant fallback） | 無 | 查詢系所必/選修 |
-| 4 | `get_dept_info` | Qdrant 向量 | `distance` | 查詢系所介紹 |
+| — | `get_dept_info`（暫停） | Qdrant 向量 | — | `ncu_departments` 審查完成前不暴露給 agent |
 | 5 | `get_graduation_requirements` | schedule_draft JSON + requirements_notes.json | 無 | 畢業規定（整合版） |
 | 6 | `get_program_info` | program_descriptions.json + 知識圖譜 | 無 | 學程說明 + 必/選修課程（整合版） |
 | 7 | `search_programs` | Qdrant 向量 | `distance` | 語意搜尋學分學程 |
@@ -202,9 +202,13 @@
 
 ---
 
-### 4. `get_dept_info` — 查詢系所介紹
+### `get_dept_info` — 暫停使用
 
-**功能**：語意搜尋系所介紹（來自 Collego 資料：特色、生涯進路、能力特質）。
+此工具的函式暫時保留，但已從 OpenAI Function Schema `TOOLS` 與 `_TOOL_MAP` 移除。Agent 無法選用或
+執行此工具；系所名稱解析也不再以 `ncu_departments` 作為向量 fallback。待資料內容、來源與向量策略
+完成 review 後再決定是否重新啟用。
+
+**原設計功能**：語意搜尋由課程事實資料統計產生的系所介紹，包括課程領域、核心能力與代表性課程。
 
 **參數表**
 
@@ -216,7 +220,14 @@
 
 ```json
 [
-  {"dept_name": "客家語文暨社會科學學系", "summary": "系所介紹前 500 字..."}
+  {
+    "dept_name": "客家語文暨社會科學學系",
+    "summary": "課程統計摘要前 500 字...",
+    "domain_profile": [],
+    "data_basis": "derived_from_ncu_course_statistics",
+    "is_official_department_statement": false,
+    "disclaimer": "課程資料統計摘要，不代表系所官方自述、入學建議或就業保證。"
+  }
 ]
 ```
 
