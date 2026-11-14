@@ -168,7 +168,8 @@ def _get_document_id_for_project(project_id: str) -> int | None:
 
         project = next((p for p in load_projects() if p["id"] == project_id), None)
         if not project:
-            _project_doc_id_cache[project_id] = None
+            # 不存在的 project_id 不寫入快取：任何人都能送任意 project_id，
+            # 寫入會讓這個 process 內的快取無限成長。快取筆數因此以 projects.json 的專案數為上限。
             return None
 
         # Fast path: projects.json already has documentId populated by the populate script.

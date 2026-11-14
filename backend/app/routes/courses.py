@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi.responses import Response
+from functools import lru_cache
+from pydantic import BaseModel, Field, TypeAdapter
 from typing import List, Optional
 import json
 from pathlib import Path
@@ -8,6 +10,8 @@ from app.services.access_control import require_live_ai
 from app.services.course_info_service import answer_course_question, enrich_course_dict, semantic_search_courses
 
 router = APIRouter()
+
+_COURSE_LIST_ADAPTER = TypeAdapter(List[Course])
 
 
 class CourseSemanticSearchRequest(BaseModel):
@@ -33,8 +37,45 @@ class CourseAskResponse(BaseModel):
     model: str
     warnings: List[str] = Field(default_factory=list)
 
+def _normalize_level(level: str) -> str:
+    """只接受 undergrad／grad；其他值一律視為 undergrad（與原本行為相同）。"""
+    return 'grad' if level == 'grad' else 'undergrad'
+
+
 # 載入課程資料
 def load_courses(level: str = 'undergrad'):
+    """回傳快取的課程清單（每個 level 只解析一次）。
+
+    回傳的 list 與 dict 是共享物件，呼叫端只能讀取、篩選，不能修改。
+    """
+    return list(_load_courses_cached(_normalize_level(level)))
+
+
+@lru_cache(maxsize=2)
+def _load_courses_cached(level: str) -> tuple:
+    return tuple(_load_courses_uncached(level))
+
+
+@lru_cache(maxsize=2)
+def _all_courses_json(level: str) -> bytes:
+    """未篩選完整清單預先驗證、序列化好的 JSON bytes，讓完整清單請求不必每次重做 3000+ 筆驗證。"""
+    # 先驗證成 Course 再序列化，輸出與 response_model=List[Course] 相同（多餘欄位會被丟掉）
+    validated = _COURSE_LIST_ADAPTER.validate_python(list(_load_courses_cached(level)))
+    return _COURSE_LIST_ADAPTER.dump_json(validated)
+
+
+@lru_cache(maxsize=1)
+def _course_lookup() -> dict:
+    """serial_no／course_id → 課程（大學部）。依原順序 setdefault，保留「第一筆符合者」的語意。"""
+    index: dict = {}
+    for course in _load_courses_cached('undergrad'):
+        for key in (course.get('serial_no'), course.get('course_id')):
+            if key:
+                index.setdefault(key, course)
+    return index
+
+
+def _load_courses_uncached(level: str):
     """從 data/processed/courses_deduped/{level}.json 載入並轉換課程資料"""
     filename = 'grad.json' if level == 'grad' else 'undergrad.json'
     canonical = Path(__file__).parent.parent.parent.parent / 'data' / 'processed' / 'courses_deduped' / filename
@@ -136,7 +177,7 @@ def convert_course_format(raw_course: dict) -> Optional[dict]:
         return None
 
 @router.get("", response_model=List[Course])
-async def get_courses(
+def get_courses(
     college: Optional[str] = Query(None, description="學院篩選"),
     department: Optional[str] = Query(None, description="系所篩選"),
     type: Optional[str] = Query(None, description="必修/選修篩選"),
@@ -145,8 +186,17 @@ async def get_courses(
 ):
     """
     取得課程列表，支援篩選
+
+    用一般 def（FastAPI 交給 threadpool），讓第一次載入與篩選結果的驗證不卡住 event loop；
+    未篩選的完整清單直接回傳快取好的 JSON bytes。
     """
-    courses = load_courses(level=level)
+    normalized_level = _normalize_level(level)
+
+    # 未篩選、未限制數量：回傳預先序列化好的完整清單
+    if not college and not department and not type and not limit:
+        return Response(content=_all_courses_json(normalized_level), media_type="application/json")
+
+    courses = load_courses(level=normalized_level)
 
     # 套用篩選條件
     filtered_courses = courses
@@ -167,10 +217,12 @@ async def get_courses(
 
 
 @router.post("/semantic-search", response_model=CourseSemanticSearchResponse)
-async def semantic_search_courses_endpoint(request: CourseSemanticSearchRequest):
+def semantic_search_courses_endpoint(request: CourseSemanticSearchRequest):
     """
     Search courses with cached text-embedding-3-large query vectors and local Qdrant collections.
     Falls back on the frontend keyword search if any dependency is unavailable.
+
+    embedding 與 Qdrant 呼叫都是同步的，所以用一般 def（交給 threadpool），不卡住 event loop。
     """
     try:
         results = semantic_search_courses(
@@ -190,9 +242,11 @@ async def semantic_search_courses_endpoint(request: CourseSemanticSearchRequest)
 
 
 @router.post("/{course_id}/ask", response_model=CourseAskResponse, dependencies=[Depends(require_live_ai)])
-async def ask_course_question_endpoint(course_id: str, request: CourseAskRequest):
+def ask_course_question_endpoint(course_id: str, request: CourseAskRequest):
     """
     Answer a one-off question about a single course. This endpoint does not save chat history.
+
+    LLM 呼叫是同步的，所以用一般 def（交給 threadpool），等待模型時不卡住 event loop。
     """
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="問題不可為空。")
@@ -214,14 +268,12 @@ async def ask_course_question_endpoint(course_id: str, request: CourseAskRequest
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @router.get("/{course_id}", response_model=Course)
-async def get_course_by_id(course_id: str):
+def get_course_by_id(course_id: str):
     """
-    根據流水號取得課程詳情
+    根據流水號取得課程詳情（查快取的索引，不再每次重新解析課程 JSON）
     """
-    courses = load_courses()
-
-    for course in courses:
-        if course.get('serial_no') == course_id or course.get('course_id') == course_id:
-            return course
+    course = _course_lookup().get(course_id)
+    if course is not None:
+        return course
 
     raise HTTPException(status_code=404, detail="Course not found")
