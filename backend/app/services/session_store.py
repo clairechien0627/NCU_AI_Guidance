@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -565,8 +565,13 @@ _WEEKDAY_NAMES = ["週一", "週二", "週三", "週四", "週五", "週六", "�
 def get_analytics(
     user_id: str,
     college_map: dict[str, str] | None = None,
+    enrich: Callable[[dict], None] | None = None,
 ) -> dict:
-    """從用戶歷史對話萃取學習傾向統計（15 分鐘快取）。"""
+    """從用戶歷史對話萃取學習傾向統計（15 分鐘快取）。
+
+    enrich：寫入快取前對結果做的補充（例如用 Qdrant 補 domain_tags），
+    讓快取涵蓋整份回應，快取命中時不必再重做。
+    """
     if not user_id:
         return _empty_analytics()
 
@@ -743,6 +748,8 @@ def get_analytics(
         "general_edu":          general_edu,
         "top_course_domains":   top_course_domains,
     }
+    if enrich is not None:
+        enrich(result)
     with _connect() as conn:
         _analytics_cache_set(conn, user_id, result)
     return result

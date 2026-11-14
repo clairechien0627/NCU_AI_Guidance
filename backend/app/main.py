@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.routes import assessment, auth, courses, projects, course_search, graph, chat, curriculum, monitor, ai_access
 from app.logging_config import configure_logging
 from app import app_state
+from app.body_limit import BodySizeLimitMiddleware
 from app.services import latency_store as ls
 from app.services import access_control
 
@@ -143,6 +144,10 @@ app = FastAPI(
 )
 
 app.add_middleware(LatencyMiddleware)
+
+# Request body 上限：必須在 LatencyMiddleware（BaseHTTPMiddleware）之外、任何讀 body 的層之前。
+# 放在 CORS 之內，讓 413 回應仍帶 CORS 標頭，前端看得到錯誤碼。
+app.add_middleware(BodySizeLimitMiddleware)
 
 # CORS configuration
 app.add_middleware(

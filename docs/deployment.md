@@ -84,6 +84,13 @@ CLOUDINARY_PROJECT_FOLDER=ncu-ai-guidance/data/raw/projects
 - 不認得的值（例如 `developer`、`true`）會讓後端在啟動時直接失敗並出現 `LIVE_AI_ACCESS_INVALID`，不會悄悄退回 `all`。
 - 修改這個值只需要更新後端環境變數並重啟，前端不用重新 build。
 
+### Request body 上限（`MAX_REQUEST_BODY_BYTES`）
+
+- 後端在所有路由之前（`BodySizeLimitMiddleware`，位於 CORS 之內）限制每個請求 body 的位元組數，預設 65536（64 KB）。
+- 超過上限回 HTTP 413，`detail` 為 `請求內容過大。`；`Content-Length` 不是整數時回 400。這發生在登入驗證之前，所以匿名請求也無法再用大型 body 消耗記憶體與 event loop 時間。
+- 沒有 `Content-Length` 的請求（chunked）由中介層邊讀邊累計，超過上限就停止讀取並回 413。
+- 目前所有端點的正常 body 都遠小於 64 KB（最大的是量表作答清單）；未設定、空字串、0、負數或非整數都會使用預設值。只有之後新增需要上傳大量資料的端點時才需要調高。
+
 ### 前端環境變數
 
 - `frontend/.env.example`

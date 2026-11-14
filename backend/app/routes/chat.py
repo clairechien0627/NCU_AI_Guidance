@@ -11,6 +11,7 @@ import json as _json
 import time as _time
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -57,7 +58,8 @@ class ChatResponse(BaseModel):
 
 
 @router.post("", response_model=ChatResponse, dependencies=[Depends(require_live_ai)])
-async def chat(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
+def chat(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
+    # 一般 def：DB 讀寫與整段 LLM 工具迴圈都是同步的，交給 threadpool 才不會卡住 event loop
     q = req.question.strip()
     if not q:
         raise HTTPException(status_code=400, detail="question 不得為空")
@@ -119,7 +121,8 @@ async def chat_stream(req: ChatRequest, user: AuthUser = Depends(get_current_use
 
     sid = req.session_id or ss.new_session_id()
     user_id = user.user_id
-    history = ss.load(sid, user_id=user_id)
+    # ss.load 會開 PostgreSQL 連線，放進 threadpool，DB 慢時才不會卡住 event loop
+    history = await run_in_threadpool(ss.load, sid, user_id=user_id)
 
     hints = []
     if req.dept:
@@ -250,14 +253,16 @@ async def get_course_detail(req: CourseDetailRequest):
     }
 
 
+# 以下對話與統計路由都做同步 DB／Qdrant 呼叫，所以用一般 def（交給 threadpool），不卡住 event loop
+
 @router.get("/sessions")
-async def list_sessions(user: AuthUser | None = Depends(get_optional_user)):
+def list_sessions(user: AuthUser | None = Depends(get_optional_user)):
     """列出所有對話摘要（session_id、標題、更新時間、輪數）。"""
     return ss.list_sessions(limit=100, user_id=user.user_id if user else None)
 
 
 @router.get("/session/{session_id}")
-async def get_session(session_id: str, user: AuthUser | None = Depends(get_optional_user)):
+def get_session(session_id: str, user: AuthUser | None = Depends(get_optional_user)):
     """取得單一對話完整資料（含每輪課程卡片與工具紀錄）。"""
     data = ss.get_display(session_id, user_id=user.user_id if user else None)
     if data is None:
@@ -266,55 +271,62 @@ async def get_session(session_id: str, user: AuthUser | None = Depends(get_optio
 
 
 @router.delete("/session/{session_id}")
-async def delete_session(session_id: str, user: AuthUser | None = Depends(get_optional_user)):
+def delete_session(session_id: str, user: AuthUser | None = Depends(get_optional_user)):
     """清除對話記錄（前端「開新對話」按鈕用）"""
     deleted = ss.delete(session_id, user_id=user.user_id if user else None)
     return {"deleted": deleted, "session_id": session_id}
 
 
-@router.get("/analytics")
-async def get_analytics(user: AuthUser = Depends(get_current_user)):
-    """取得當前用戶的學習傾向分析統計（需登入）。"""
-    from app.services.retriever import _load_college_map, get_courses_by_name
-    college_map = _load_college_map()
-    result = ss.get_analytics(user.user_id, college_map=college_map)
+def _backfill_domain_tags(result: dict) -> None:
+    """舊紀錄的 course_cards 缺少 domain_tags，用課程名稱回查 Qdrant 補齊（就地修改 result）。"""
+    from app.services.retriever import get_courses_by_name
 
-    # 舊紀錄的 course_cards 缺少 domain_tags，用課程名稱回查 Qdrant 補齊
-    if not result["top_domain_tags"] and result["top_courses"]:
-        tag_counter: dict[str, int] = {}
-        for course_item in result["top_courses"][:10]:
-            try:
-                hits = get_courses_by_name(course_item["name"])
-                if not hits:
+    if result["top_domain_tags"] or not result["top_courses"]:
+        return
+    tag_counter: dict[str, int] = {}
+    for course_item in result["top_courses"][:10]:
+        try:
+            hits = get_courses_by_name(course_item["name"])
+            if not hits:
+                continue
+            meta = hits[0].get("metadata", {})
+            raw = meta.get("domain_tags_rich") or meta.get("domain_tags") or []
+            weight = course_item.get("count", 1)
+            tags = raw if isinstance(raw, list) else (raw.split("||") if isinstance(raw, str) else [])
+            for entry in tags:
+                entry = str(entry).strip()
+                if not entry:
                     continue
-                meta = hits[0].get("metadata", {})
-                raw = meta.get("domain_tags_rich") or meta.get("domain_tags") or []
-                weight = course_item.get("count", 1)
-                tags = raw if isinstance(raw, list) else (raw.split("||") if isinstance(raw, str) else [])
-                for entry in tags:
-                    entry = str(entry).strip()
-                    if not entry:
-                        continue
-                    if "::" in entry:
-                        tag, score_str = entry.rsplit("::", 1)
-                        tag = tag.strip()
-                        try:
-                            if tag and float(score_str) >= 0.5:
-                                tag_counter[tag] = tag_counter.get(tag, 0) + weight
-                        except ValueError:
-                            if tag:
-                                tag_counter[tag] = tag_counter.get(tag, 0) + weight
-                    else:
-                        tag_counter[entry] = tag_counter.get(entry, 0) + weight
-            except Exception:
-                pass
-        if tag_counter:
-            result["top_domain_tags"] = [
-                {"tag": t, "count": c}
-                for t, c in sorted(tag_counter.items(), key=lambda x: -x[1])[:15]
-            ]
+                if "::" in entry:
+                    tag, score_str = entry.rsplit("::", 1)
+                    tag = tag.strip()
+                    try:
+                        if tag and float(score_str) >= 0.5:
+                            tag_counter[tag] = tag_counter.get(tag, 0) + weight
+                    except ValueError:
+                        if tag:
+                            tag_counter[tag] = tag_counter.get(tag, 0) + weight
+                else:
+                    tag_counter[entry] = tag_counter.get(entry, 0) + weight
+        except Exception:
+            pass
+    if tag_counter:
+        result["top_domain_tags"] = [
+            {"tag": t, "count": c}
+            for t, c in sorted(tag_counter.items(), key=lambda x: -x[1])[:15]
+        ]
 
-    return result
+
+@router.get("/analytics")
+def get_analytics(user: AuthUser = Depends(get_current_user)):
+    """取得當前用戶的學習傾向分析統計（需登入）。
+
+    domain_tags 的 Qdrant 補查在寫入快取前完成，15 分鐘快取涵蓋整份回應，
+    快取命中時不會再查 Qdrant。
+    """
+    from app.services.retriever import _load_college_map
+    college_map = _load_college_map()
+    return ss.get_analytics(user.user_id, college_map=college_map, enrich=_backfill_domain_tags)
 
 
 @router.get("/tools")
