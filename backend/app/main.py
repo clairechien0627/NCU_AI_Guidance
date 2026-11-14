@@ -10,10 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.routes import assessment, auth, courses, projects, course_search, graph, chat, curriculum, monitor
+from app.routes import assessment, auth, courses, projects, course_search, graph, chat, curriculum, monitor, ai_access
 from app.logging_config import configure_logging
 from app import app_state
 from app.services import latency_store as ls
+from app.services import access_control
 
 configure_logging()
 
@@ -56,6 +57,10 @@ class LatencyMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # LIVE_AI_ACCESS 設錯（例如打錯字）時直接讓啟動失敗，不悄悄退回 all
+    live_ai_mode = access_control.live_ai_mode()
+    logger.info("LIVE_AI_ACCESS=%s", live_ai_mode)
+
     # PDF chat coordination (stream lock, cancel, steering) is process-local.
     # This application MUST run as a single Uvicorn worker (--workers 1).
     # Multi-worker support requires migrating these to PostgreSQL LISTEN/NOTIFY.
@@ -158,6 +163,7 @@ app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(curriculum.router, prefix="/api/curriculum", tags=["curriculum"])
 app.include_router(monitor.router, prefix="/api/monitor", tags=["monitor"])
+app.include_router(ai_access.router, prefix="/api/ai-access", tags=["ai-access"])
 
 # 掛載 PDF 靜態文件服務
 pdf_directory = Path(__file__).parent.parent.parent / "data" / "raw" / "projects" / "104-114"

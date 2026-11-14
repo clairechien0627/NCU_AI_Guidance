@@ -28,7 +28,10 @@ import {
   sortDeptsByCollegeOrder,
 } from '../constants/colleges';
 import PdfViewer from '../components/PdfViewer';
+import LiveAiDisabledNotice, { LiveAiPendingSlot } from '../components/LiveAiDisabledNotice';
 import { useAuth } from '../auth/AuthContext';
+import { useLiveAiAccess } from '../hooks/useLiveAiAccess';
+import type { LiveAiStatus } from '../api/liveAi';
 import type { Project } from '../types';
 
 type ChatMessage = {
@@ -41,6 +44,7 @@ type MobileOutlineView = 'list' | 'detail';
 
 export default function ProjectsPage() {
   const { user, loginWithGoogle } = useAuth();
+  const liveAi = useLiveAiAccess();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [viewMode, setViewMode] = useState<'outline' | 'pdf-chat'>('outline');
@@ -196,7 +200,7 @@ export default function ProjectsPage() {
   };
 
   const doSendProjectMessage = (msg: string, fromIdx?: number) => {
-    if (!user || !selectedProject || chatLoading) return;
+    if (!user || !liveAi.allowed || !selectedProject || chatLoading) return;
     setChatLoading(true);
     setStreamingText('');
     setChatMessages((prev) => {
@@ -258,6 +262,17 @@ export default function ProjectsPage() {
             ...prev,
             { role: 'assistant', content: '目前暫時無法回應，請稍後再試一次。' },
           ]);
+          setChatLoading(false);
+          abortCtrlRef.current = null;
+        },
+        onRestricted: (restrictedMsg) => {
+          // 後端判定目前帳號不能使用即時 AI：顯示說明而不是錯誤，並把輸入區換成說明元件
+          liveAi.markRestricted(restrictedMsg);
+          setActiveAgent(null);
+          setCurrentStage('');
+          streamingTextRef.current = '';
+          setStreamingText('');
+          setChatMessages((prev) => [...prev, { role: 'assistant', content: restrictedMsg }]);
           setChatLoading(false);
           abortCtrlRef.current = null;
         },
@@ -712,12 +727,14 @@ export default function ProjectsPage() {
                   onClose={() => setIsMobileChatOpen(false)}
                   isLoggedIn={!!user}
                   onLogin={loginWithGoogle}
+                  liveAiStatus={liveAi.status}
+                  liveAiMessage={liveAi.message}
                   conversations={pdfConversations}
                   activeThreadId={threadId}
                   onNewConversation={handleNewPdfConversation}
                   onSwitchConversation={handleSwitchPdfConversation}
                   onDeleteConversation={handleDeletePdfConversation}
-                  onSendEdit={handleSendEditedMessage}
+                  onSendEdit={liveAi.allowed ? handleSendEditedMessage : undefined}
                 />
 
                 <div className="flex w-11 items-center justify-center pl-2">
@@ -756,12 +773,14 @@ export default function ProjectsPage() {
               onCancel={handleCancelStream}
               isLoggedIn={!!user}
               onLogin={loginWithGoogle}
+              liveAiStatus={liveAi.status}
+              liveAiMessage={liveAi.message}
               conversations={pdfConversations}
               activeThreadId={threadId}
               onNewConversation={handleNewPdfConversation}
               onSwitchConversation={handleSwitchPdfConversation}
               onDeleteConversation={handleDeletePdfConversation}
-              onSendEdit={handleSendEditedMessage}
+              onSendEdit={liveAi.allowed ? handleSendEditedMessage : undefined}
             />
           </div>
         </>
@@ -912,6 +931,8 @@ function ChatPanel({
   compact = false,
   isLoggedIn = true,
   onLogin,
+  liveAiStatus = 'allowed',
+  liveAiMessage,
   conversations = [],
   activeThreadId,
   onNewConversation,
@@ -932,6 +953,8 @@ function ChatPanel({
   compact?: boolean;
   isLoggedIn?: boolean;
   onLogin?: () => void;
+  liveAiStatus?: LiveAiStatus;
+  liveAiMessage?: string;
   conversations?: PdfConversationSummary[];
   activeThreadId?: string;
   onNewConversation?: () => void;
@@ -1155,6 +1178,14 @@ function ChatPanel({
             </button>
           </div>
         </div>
+      ) : liveAiStatus === 'loading' ? (
+        <LiveAiPendingSlot compact />
+      ) : liveAiStatus !== 'allowed' ? (
+        <LiveAiDisabledNotice
+          assistant="research"
+          compact={compact}
+          message={liveAiMessage}
+        />
       ) : (
         <form onSubmit={onSubmit} className="border-t border-gray-200 p-3">
           <div className="flex gap-2">

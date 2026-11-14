@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import json
 from pathlib import Path
 from app.models.schemas import Course
+from app.services.access_control import require_live_ai
 from app.services.course_info_service import answer_course_question, enrich_course_dict, semantic_search_courses
 
 router = APIRouter()
@@ -188,7 +189,7 @@ async def semantic_search_courses_endpoint(request: CourseSemanticSearchRequest)
         )
 
 
-@router.post("/{course_id}/ask", response_model=CourseAskResponse)
+@router.post("/{course_id}/ask", response_model=CourseAskResponse, dependencies=[Depends(require_live_ai)])
 async def ask_course_question_endpoint(course_id: str, request: CourseAskRequest):
     """
     Answer a one-off question about a single course. This endpoint does not save chat history.

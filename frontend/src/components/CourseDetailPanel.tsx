@@ -19,9 +19,12 @@ import {
   HiX,
 } from 'react-icons/hi';
 import { courseAPI } from '../api/services';
+import { apiErrorDisplayMessage, liveAiRestrictedMessageFromError } from '../api/liveAi';
+import { useLiveAiAccess } from '../hooks/useLiveAiAccess';
 import type { Course } from '../types';
 import CoreAbilityTable from './CoreAbilityTable';
 import HighlightText from './HighlightText';
+import LiveAiDisabledNotice, { LiveAiPendingSlot } from './LiveAiDisabledNotice';
 
 interface CourseDetailPanelProps {
   course: Course | null;
@@ -39,10 +42,9 @@ const splitFields = (value?: string | null) =>
 const uniqueFields = (values?: string[]) =>
   Array.from(new Set((values ?? []).map((item) => item.trim()).filter(Boolean)));
 
-const getApiErrorMessage = (error: unknown) => {
-  const apiError = error as { response?: { data?: { detail?: string } }; message?: string };
-  return apiError.response?.data?.detail || apiError.message || 'AI 課程助理暫時無法回答，請稍後再試。';
-};
+// detail 可能是物件或陣列，統一轉成字串，避免把物件當成 React child 渲染而讓頁面崩潰
+const getApiErrorMessage = (error: unknown) =>
+  apiErrorDisplayMessage(error, 'AI 課程助理暫時無法回答，請稍後再試。');
 
 const QUICK_ACTIONS = [
   { id: 'translate', label: '翻成中文', prompt: '請把這門課的課程目標與課程內容翻譯成繁體中文，保持原本的架構。' },
@@ -60,6 +62,7 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
   const [askLoading, setAskLoading] = useState(false);
   const [aiPanelWidth, setAiPanelWidth] = useState(360);
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
+  const liveAi = useLiveAiAccess();
   const courseIdentity = course ? `${course.serial_no}-${course.course_id}` : '';
 
   const resetAskState = () => {
@@ -84,7 +87,7 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
   };
 
   const submitQuestion = async (question: string) => {
-    if (!course) return;
+    if (!course || !liveAi.allowed) return;
     setAskLoading(true);
     setAskError('');
     setAskAnswer('');
@@ -96,7 +99,13 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
         setAskError(response.warnings.join(' '));
       }
     } catch (error) {
-      setAskError(getApiErrorMessage(error));
+      const restricted = liveAiRestrictedMessageFromError(error);
+      if (restricted !== null) {
+        // 後端判定目前帳號不能使用即時 AI：輸入區換成說明元件（說明裡已有同一句話，不再另外顯示錯誤）
+        liveAi.markRestricted(restricted);
+      } else {
+        setAskError(getApiErrorMessage(error));
+      }
     } finally {
       setAskLoading(false);
     }
@@ -399,6 +408,7 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
             <HiX className="h-4 w-4" />
           </button>
         </div>
+        {liveAi.allowed && (
         <div className="border-b border-slate-100 shrink-0">
           <button
             type="button"
@@ -424,11 +434,14 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
             </div>
           )}
         </div>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {!askLastQuestion ? (
+            !liveAi.allowed ? null : (
             <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-500">
               可以詢問這門課的內容、修課資格、適合背景，或使用上方快速提問。
             </div>
+            )
           ) : (
             <>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -455,6 +468,15 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
             </>
           )}
         </div>
+        {liveAi.loading ? (
+          <LiveAiPendingSlot compact />
+        ) : !liveAi.allowed ? (
+          <LiveAiDisabledNotice
+            assistant="course"
+            compact
+            message={liveAi.message}
+          />
+        ) : (
         <form onSubmit={handleAskSubmit} className="border-t border-slate-200 p-3 shrink-0">
           <div className="flex gap-2">
             <textarea
@@ -484,6 +506,7 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
             </button>
           </div>
         </form>
+        )}
       </div>
       </>
     ) : null}
@@ -505,6 +528,7 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
             </button>
           </div>
 
+          {liveAi.allowed && (
           <div className="border-b border-slate-100 px-5 py-3">
             <p className="mb-2 text-xs font-medium text-slate-400">快速提問</p>
             <div className="flex flex-wrap gap-1.5">
@@ -521,6 +545,7 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
               ))}
             </div>
           </div>
+          )}
 
           <div className="max-h-[44vh] overflow-y-auto px-5 py-4">
             {askLastQuestion ? (
@@ -535,11 +560,11 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
                 <div className="mb-1 text-xs font-semibold text-slate-600">AI 回答</div>
                 <MarkdownAnswer text={askAnswer} />
               </div>
-            ) : (
+            ) : liveAi.allowed ? (
               <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-500">
                 可以詢問這門課的內容、修課資格、適合背景、可能用到的工具或概念。回答只根據目前課程資料產生。
               </div>
-            )}
+            ) : null}
 
             {askError ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-800">
@@ -548,6 +573,14 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
             ) : null}
           </div>
 
+          {liveAi.loading ? (
+            <LiveAiPendingSlot />
+          ) : !liveAi.allowed ? (
+            <LiveAiDisabledNotice
+              assistant="course"
+              message={liveAi.message}
+            />
+          ) : (
           <form onSubmit={handleAskSubmit} className="border-t border-slate-200 p-4">
             <label className="mb-2 block text-sm font-medium text-slate-700">輸入問題</label>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -569,6 +602,7 @@ const CourseDetailPanel: React.FC<CourseDetailPanelProps> = ({ course, searchKey
               </button>
             </div>
           </form>
+          )}
         </div>
       </div>
     ) : null}

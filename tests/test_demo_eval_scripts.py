@@ -232,11 +232,16 @@ def test_backend_interfaces_used_by_runner_exist():
 
     assert {"AuthUser", "get_current_user", "get_optional_user"} <= top_level_names(
         "backend/app/services/auth_service.py")
+    # runner 會覆寫 require_live_ai，讓錄製帳號在 LIVE_AI_ACCESS=developers 時也能通過 gate
+    assert "require_live_ai" in top_level_names("backend/app/services/access_control.py")
+    runner_src = (ROOT / "scripts" / "demo" / "assistant_runner.py").read_text(encoding="utf-8")
+    assert "from app.services.access_control import require_live_ai" in runner_src
+    assert "app.dependency_overrides[require_live_ai] = lambda: None" in runner_src
     main_src = (ROOT / "backend" / "app" / "main.py").read_text(encoding="utf-8")
     assert "app = FastAPI(" in main_src and '@app.get("/ready")' in main_src
     assert 'prefix="/api/chat"' in main_src and 'prefix="/api/projects"' in main_src
     chat_src = (ROOT / "backend" / "app" / "routes" / "chat.py").read_text(encoding="utf-8")
-    assert '@router.post("/stream")' in chat_src
+    assert '@router.post("/stream"' in chat_src  # 允許之後帶 dependencies 等參數
     for field in ("question", "session_id", "college", "dept"):
         assert f"    {field}:" in chat_src, field
     projects_src = (ROOT / "backend" / "app" / "routes" / "projects.py").read_text(encoding="utf-8")

@@ -18,6 +18,9 @@ class AuthUser:
     email: str
     name: str
     picture: str
+    # Firebase 是否已驗證這個 email；放最後並給預設值，既有的 AuthUser(...) 建構呼叫不用改。
+    # 只有 email_verified=True 的帳號會被當成開發者（見 access_control.is_developer）。
+    email_verified: bool = False
 
 
 def verify_firebase_token(token: str) -> AuthUser:
@@ -33,6 +36,7 @@ def verify_firebase_token(token: str) -> AuthUser:
         email=decoded.get("email", ""),
         name=decoded.get("name", "") or decoded.get("email", ""),
         picture=decoded.get("picture", ""),
+        email_verified=decoded.get("email_verified") is True,
     )
 
 

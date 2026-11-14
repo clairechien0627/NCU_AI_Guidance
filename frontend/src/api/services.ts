@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import { getFirebaseIdToken } from '../auth/firebase';
+import { liveAiRestrictedMessageFromResponse } from './liveAi';
 import type {
   AssessmentMode,
   Question,
@@ -25,6 +26,14 @@ function getAnonSessionId(): string {
   }
   return id;
 }
+
+// 即時 AI 權限（後端依登入者 email 判斷；未登入也可呼叫）
+export const liveAiAPI = {
+  getAccess: async (): Promise<unknown> => {
+    const response = await apiClient.get('/ai-access');
+    return response.data;
+  },
+};
 
 export const authAPI = {
   me: async (): Promise<{
@@ -157,6 +166,8 @@ export const chatStreamAPI = {
       onVerifyDone:  (selected: string[], filteredOut: string[], method?: 'tag' | 'llm') => void;
       onDone:        (event: StreamEvent) => void;
       onError:       (msg: string) => void;
+      /** 後端回 403 LIVE_AI_RESTRICTED 時呼叫；沒提供就改走 onError */
+      onRestricted?: (msg: string) => void;
     },
     session_id?: string,
     college?: string,
@@ -175,7 +186,12 @@ export const chatStreamAPI = {
       signal:  controller.signal,
       }))
       .then(async (res) => {
-        if (!res.ok) { handlers.onError(`HTTP ${res.status}`); return; }
+        if (!res.ok) {
+          const restricted = await liveAiRestrictedMessageFromResponse(res);
+          if (restricted !== null) { (handlers.onRestricted ?? handlers.onError)(restricted); return; }
+          handlers.onError(`HTTP ${res.status}`);
+          return;
+        }
         const reader = res.body!.getReader();
         const decoder = new TextDecoder();
         let buf = '';
@@ -550,6 +566,8 @@ export const projectAPI = {
       onSessionId?: (sessionId: string) => void;
       onAgentStart?: (agent: string, label: string) => void;
       onStage?: (text: string) => void;
+      /** 後端回 403 LIVE_AI_RESTRICTED 時呼叫；沒提供就改走 onError */
+      onRestricted?: (msg: string) => void;
     },
     threadId?: string,
   ): AbortController {
@@ -570,7 +588,12 @@ export const projectAPI = {
         }),
       )
       .then(async (res) => {
-        if (!res.ok) { handlers.onError(`HTTP ${res.status}`); return; }
+        if (!res.ok) {
+          const restricted = await liveAiRestrictedMessageFromResponse(res);
+          if (restricted !== null) { (handlers.onRestricted ?? handlers.onError)(restricted); return; }
+          handlers.onError(`HTTP ${res.status}`);
+          return;
+        }
         const reader = res.body!.getReader();
         const decoder = new TextDecoder();
         let buf = '';
