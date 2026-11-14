@@ -80,6 +80,8 @@
 
 照 `backend.env.example` 的註解填值（Azure OpenAI、Neon、Qdrant Cloud、Firebase、Cloudinary 等），
 `ALLOWED_ORIGINS` 要包含前端網域。
+`LIVE_AI_ACCESS` 未設定時是 `all`（所有人都能用即時 AI）；正式站想把即時 AI 限制給開發團隊時設成
+`developers`，只有 `DEVELOPER_EMAILS` 名單內、email 已驗證的登入帳號能用（細節見 `docs/deployment.md`）。
 
 ### `backend.env` 的格式
 

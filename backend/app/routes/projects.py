@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from app.models.schemas import Project, ChatRequest, ChatResponse
+from app.services.access_control import require_live_ai
 from app.services.auth_service import get_optional_user, get_current_user, AuthUser
 
 logger = logging.getLogger(__name__)
@@ -294,7 +295,12 @@ def _verify_cancel_ownership(thread_id: str, document_id: int, effective_req_id:
 
 # ── 非串流 chat（向下相容原有 schema）────────────────────────────────────────────
 
-@router.post("/{project_id}/chat", response_model=ChatResponse, dependencies=[Depends(_require_pdf_chat)])
+# require_live_ai 放在 _require_pdf_chat 前面：受限帳號一律拿到 403 LIVE_AI_RESTRICTED，而不是 503
+@router.post(
+    "/{project_id}/chat",
+    response_model=ChatResponse,
+    dependencies=[Depends(require_live_ai), Depends(_require_pdf_chat)],
+)
 async def chat_with_project(
     project_id: str,
     request: ChatRequest,
@@ -348,7 +354,7 @@ async def chat_with_project(
 
 # ── SSE 串流 chat（前端主要使用）──────────────────────────────────────────────────
 
-@router.post("/{project_id}/chat/stream", dependencies=[Depends(_require_pdf_chat)])
+@router.post("/{project_id}/chat/stream", dependencies=[Depends(require_live_ai), Depends(_require_pdf_chat)])
 async def chat_with_project_stream(
     project_id: str,
     request: ChatRequest,

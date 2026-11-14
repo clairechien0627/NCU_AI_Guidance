@@ -3,7 +3,8 @@ assistant_runner.py — 在同一個 process 內啟動後端，對兩個 AI 助�
 
 給 Demo 案例錄製（record_demo_cases.py）與實證評估（scripts/evaluation/run_eval.py）共用。
 
-做法：直接 import `app.main.app`，用 FastAPI dependency override 換掉 Firebase 登入，
+做法：直接 import `app.main.app`，用 FastAPI dependency override 換掉 Firebase 登入
+（也略過 LIVE_AI_ACCESS 的即時 AI gate，讓錄製帳號在 developers 模式下也能發問），
 再透過 TestClient 打「真正的」SSE endpoint（/api/chat/stream、/api/projects/{id}/chat/stream）。
 因此錄下來的事件格式、工具呼叫、引用來源都與正式站台完全相同，不是另外拼湊的結果。
 
@@ -200,12 +201,18 @@ class AssistantRunner:
         from fastapi.testclient import TestClient
 
         from app.main import app
+        from app.services.access_control import require_live_ai
         from app.services.auth_service import AuthUser, get_current_user, get_optional_user
 
         recorder = AuthUser(user_id=RECORDER_USER_ID, email="demo-recorder@localhost",
                             name="Demo Recorder", picture="")
         app.dependency_overrides[get_current_user] = lambda: recorder
         app.dependency_overrides[get_optional_user] = lambda: recorder
+        # LIVE_AI_ACCESS=developers 時，require_live_ai 只放行 DEVELOPER_EMAILS 內、email 已驗證的帳號，
+        # 且它會自己解析 token（不經過上面 get_optional_user 的 override），錄製帳號會被擋成 403。
+        # 錄製／評估是開發者在本機主動執行的離線工具，沿用 .env 的 LIVE_AI_ACCESS 不該讓它失敗，
+        # 所以直接覆寫這個 gate；正式站台的請求不會經過這裡。
+        app.dependency_overrides[require_live_ai] = lambda: None
         self._client = TestClient(app, raise_server_exceptions=False)
         self._client.__enter__()  # 跑 lifespan：checkpointer、RAG 預熱
         ready = self._client.get("/ready")

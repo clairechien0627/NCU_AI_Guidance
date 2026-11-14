@@ -66,6 +66,24 @@ CLOUDINARY_PROJECT_FOLDER=ncu-ai-guidance/data/raw/projects
 - 不支援的值（例如打錯字）會在建立／呼叫對話模型時拋出 `AI_PROVIDER_INVALID` 錯誤，不會靜默退回 azure。
 - `scripts/` 底下的離線資料管線（例如 `scripts/nlp/build_glossary.py`）不受開關影響，仍直接使用 Azure。
 
+### 即時 AI 開放對象（`LIVE_AI_ACCESS`）
+
+控制誰能使用會呼叫對話／推理型 LLM（會燒 token）的功能：
+
+| `LIVE_AI_ACCESS` | 誰能用即時 AI |
+| --- | --- |
+| 未設定或 `all`（預設） | 所有人，行為與加入開關前完全相同 |
+| `developers` | 只有 `DEVELOPER_EMAILS` 名單內、已用 Google 登入且 Firebase 已驗證 email（`email_verified`）的帳號 |
+
+- 受影響的端點（後端以 `require_live_ai` dependency 把關）：`POST /api/chat`、`POST /api/chat/stream`、`POST /api/courses/{course_id}/ask`、`POST /api/projects/{project_id}/chat`、`POST /api/projects/{project_id}/chat/stream`。
+- `developers` 模式下，未登入或不在名單內的帳號呼叫上述端點會收到 HTTP 403，`detail` 為 `{"code": "LIVE_AI_RESTRICTED", "message": "即時 AI 問答目前只開放給開發團隊"}`。
+- 不呼叫對話 LLM 的功能都不受影響：興趣量表、系所修課、課程資訊（含只呼叫 embedding 的語意搜尋）、研究計畫瀏覽與 PDF、對話紀錄查詢與刪除、監控頁。
+- `all` 模式下 gate 完全不解析 token，公開端點（例如單課問答）不會因為過期或無效的 token 變成 401；`developers` 模式下無效 token 回 401。
+- `DEVELOPER_EMAILS` 與 `/monitor` 共用同一份名單（逗號分隔、去空白、不分大小寫）；名單是空的時，`developers` 模式等於沒有人能用即時 AI。
+- 前端不另設 VITE 開關，而是呼叫公開端點 `GET /api/ai-access`（未登入也可呼叫；`developers` 模式才依 Firebase token 判斷身分，`all` 模式完全不解析 token，過期或無效的 token 也不會回 401）取得 `{"mode": "all" | "developers", "live_ai": true | false}`，`live_ai=false` 時把提問輸入框換成說明。
+- 不認得的值（例如 `developer`、`true`）會讓後端在啟動時直接失敗並出現 `LIVE_AI_ACCESS_INVALID`，不會悄悄退回 `all`。
+- 修改這個值只需要更新後端環境變數並重啟，前端不用重新 build。
+
 ### 前端環境變數
 
 - `frontend/.env.example`

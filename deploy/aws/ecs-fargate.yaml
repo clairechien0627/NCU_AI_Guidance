@@ -44,6 +44,14 @@ Parameters:
       Chat model provider, passed to the container as AI_PROVIDER. "bedrock" needs a backend version
       that implements the AI_PROVIDER switch, and also grants the task role Bedrock invoke permissions.
       Embeddings stay on Azure OpenAI (text-embedding-3-large, 3072 dimensions) either way.
+  LiveAiAccess:
+    Type: String
+    Default: all
+    AllowedValues: [all, developers]
+    Description: >-
+      Who can use live chat-LLM features, passed to the container as LIVE_AI_ACCESS. "all" = everyone
+      (default); "developers" = only signed-in accounts listed in the DEVELOPER_EMAILS secret with a
+      verified email (others get HTTP 403). Use "developers" to keep production chat limited to the team.
   AzureOpenAiApiVersion:
     Type: String
     Default: 2024-12-01-preview
@@ -271,6 +279,7 @@ Resources:
             - { Name: ALLOWED_ORIGINS, Value: !Ref AllowedOrigins }
             - { Name: FIREBASE_PROJECT_ID, Value: !Ref FirebaseProjectId }
             - { Name: AI_PROVIDER, Value: !Ref AiProvider }
+            - { Name: LIVE_AI_ACCESS, Value: !Ref LiveAiAccess }
             # Azure OpenAI：課程助理讀 AZURE_OPENAI_*，PDF 問答（backend/app/pdf_config.py）讀 AZURE_*_DEPLOYMENT
             - { Name: AZURE_OPENAI_API_VERSION, Value: !Ref AzureOpenAiApiVersion }
             - { Name: AZURE_OPENAI_CHAT_DEPLOYMENT, Value: !Ref AzureChatDeployment }

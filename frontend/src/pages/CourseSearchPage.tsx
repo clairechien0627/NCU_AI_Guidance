@@ -17,7 +17,9 @@ import CourseSidePanel from '../components/CourseSidePanel';
 import CourseDetailModal from '../components/CourseDetailModal';
 import DebugTracePanel from '../components/DebugTracePanel';
 import HighlightedAnswer from '../components/HighlightedAnswer';
+import LiveAiDisabledNotice, { LiveAiPendingSlot } from '../components/LiveAiDisabledNotice';
 import { useAuth } from '../auth/AuthContext';
+import { useLiveAiAccess } from '../hooks/useLiveAiAccess';
 import type { CourseCard, DebugTrace, StreamEvent, ToolTraceItem } from '../types';
 
 const TOOL_LABELS: Record<string, string> = {
@@ -210,6 +212,7 @@ function ConvList({ conversations, selectedConversationId, onSelectConversation,
 
 export default function CourseSearchPage() {
   const { user, loading: authLoading, loginWithGoogle } = useAuth();
+  const liveAi = useLiveAiAccess();
   const [conversations, setConversations]       = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState('');
   const [inputMessage, setInputMessage]         = useState('');
@@ -423,7 +426,7 @@ export default function CourseSearchPage() {
   // sendText: 覆蓋 inputMessage；fromIdx: 從此索引截斷再送（編輯用）
   const doSend = (sendText?: string, fromIdx?: number) => {
     const text = (sendText !== undefined ? sendText : inputMessage).trim();
-    if (!user || !text || !selectedConversation || isStreaming) return;
+    if (!user || !liveAi.allowed || !text || !selectedConversation || isStreaming) return;
 
     if (sendText === undefined) setInputMessage('');
     const convId = selectedConversation.id;
@@ -526,6 +529,20 @@ export default function CourseSearchPage() {
                 isStreaming: false,
                 content: msgs[streamIdx].content || `抱歉，發生錯誤：${msg}`,
               };
+            }
+            return { ...c, messages: msgs };
+          });
+          setIsStreaming(false);
+          setIsVerifying(false);
+          setActiveTools([]);
+        },
+        onRestricted: (msg) => {
+          // 後端判定目前帳號不能使用即時 AI：顯示說明而不是錯誤，並把輸入區換成說明元件
+          liveAi.markRestricted(msg);
+          updateConv(convId, (c) => {
+            const msgs = [...c.messages];
+            if (msgs[streamIdx]) {
+              msgs[streamIdx] = { ...msgs[streamIdx], isStreaming: false, content: msgs[streamIdx].content || msg };
             }
             return { ...c, messages: msgs };
           });
@@ -726,7 +743,7 @@ export default function CourseSearchPage() {
                       (acc, m, i) => (acc === -1 && m.role === 'user' ? i : acc), -1,
                     );
                     const isEditing = editingMsgIdx === idx;
-                    const canEdit   = msg.role === 'user' && idx === lastUserIdx && !isStreaming;
+                    const canEdit   = msg.role === 'user' && idx === lastUserIdx && !isStreaming && liveAi.allowed;
                     return (
                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={msg.role === 'user' ? 'max-w-[82%]' : 'w-full'}>
@@ -878,7 +895,7 @@ export default function CourseSearchPage() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* 輸入框 / 登入提示 */}
+                {/* 輸入框 / 登入提示 / 即時 AI 權限說明 */}
                 {!user ? (
                   <div className="border-t border-gray-200 p-4">
                     <div className="flex flex-col items-center gap-3 rounded-2xl bg-slate-50 px-4 py-5 text-center">
@@ -904,6 +921,13 @@ export default function CourseSearchPage() {
                       </button>
                     </div>
                   </div>
+                ) : liveAi.loading ? (
+                  <LiveAiPendingSlot compact />
+                ) : !liveAi.allowed ? (
+                  <LiveAiDisabledNotice
+                    assistant="course"
+                    message={liveAi.message}
+                  />
                 ) : (
                   <form onSubmit={handleSendMessage} className="border-t border-gray-200 p-3">
                     <div className="flex items-end gap-3">

@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.services import latency_store as ls
 import time as _time
 from app.services import session_store as ss
+from app.services.access_control import developer_emails, is_developer
 from app.services.auth_service import AuthUser, get_current_user
 
 router = APIRouter()
@@ -22,11 +23,10 @@ _DAYS_MAP = {"1d": 1, "7d": 7, "30d": 30}
 
 
 def _require_developer(user: AuthUser = Depends(get_current_user)) -> AuthUser:
-    raw = os.getenv("DEVELOPER_EMAILS", "").strip()
-    if not raw:
+    if not developer_emails():
         raise HTTPException(status_code=403, detail="開發人員專用功能（DEVELOPER_EMAILS 未設定）")
-    devs = {e.strip().lower() for e in raw.split(",") if e.strip()}
-    if user.email.lower() not in devs:
+    # 名單內且 Firebase 已驗證 email 才算開發者（未驗證的 email 可被冒用）
+    if not is_developer(user):
         raise HTTPException(status_code=403, detail="開發人員專用功能")
     return user
 

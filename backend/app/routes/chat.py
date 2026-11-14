@@ -17,6 +17,7 @@ from typing import Optional
 
 from app.services import llm_service as llm
 from app.services import session_store as ss
+from app.services.access_control import require_live_ai
 from app.services.auth_service import AuthUser, get_optional_user, get_current_user
 
 router = APIRouter()
@@ -55,7 +56,7 @@ class ChatResponse(BaseModel):
     output_tokens: int
 
 
-@router.post("", response_model=ChatResponse)
+@router.post("", response_model=ChatResponse, dependencies=[Depends(require_live_ai)])
 async def chat(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
     q = req.question.strip()
     if not q:
@@ -109,7 +110,7 @@ async def chat(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
     )
 
 
-@router.post("/stream")
+@router.post("/stream", dependencies=[Depends(require_live_ai)])
 async def chat_stream(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
     """串流版：SSE 逐字回傳 + 工具呼叫進度事件。"""
     q = req.question.strip()

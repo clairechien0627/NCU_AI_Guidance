@@ -129,6 +129,7 @@ Console → CloudFormation → Create stack → Upload `deploy/aws/ecs-fargate.y
 | `SecretArn` | 步驟 2 的密鑰（完整 ARN） |
 | `AllowedOrigins` | 前端網域（CORS），逗號分隔 |
 | `AiProvider` | `azure`（預設）或 `bedrock`，見「AI 供應商」 |
+| `LiveAiAccess` | 傳進容器成為 `LIVE_AI_ACCESS`：`all`（預設，所有人都能用即時 AI）或 `developers`（只有密鑰 `DEVELOPER_EMAILS` 名單內、email 已驗證的帳號能用，正式站可用來限制即時 AI）；細節見 `docs/deployment.md` |
 | `AzureChatDeployment` / `AzureMiniDeployment` / `AzureEmbeddingDeployment` | Azure 上的部署名稱 |
 | `BedrockChatModelId` / `BedrockMiniModelId` | 只有 `bedrock` 需要；`bedrock` 時 `BedrockChatModelId` 必填 |
 | `PdfQdrantCollection` | PDF 問答的 Qdrant collection（預設 `reports`） |

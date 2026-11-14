@@ -4,7 +4,7 @@ import { HiChevronDown, HiUser, HiLogout, HiChartBar } from 'react-icons/hi';
 import { useAuth } from '../auth/AuthContext';
 import { isDeveloper } from '../auth/developerUtils';
 
-function GoogleMark() {
+export function GoogleMark() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0">
       <path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5.4c-.2 1.2-.9 2.3-2 3v2.4h3.2c1.9-1.7 3-4.2 3-7.1z" />
